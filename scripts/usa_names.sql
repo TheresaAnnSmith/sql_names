@@ -286,12 +286,12 @@ where name in
 How many names have made an appearance in every single year since 1880?
 */
 
--- Michael says this is garbage
+-- Corrected
 
-SELECT name, COUNT(name) AS years_appeared
+SELECT name, COUNT(DISTINCT year)
 FROM names
 GROUP BY name
-HAVING COUNT(name) > 139;
+HAVING COUNT(DISTINCT year) = 139;
 
 /* Answer 15
 136 names appeared every year between 1880 and 2018
@@ -381,13 +381,33 @@ Zilpah and Roll haven't been used in 137 years.
 Come up with a question that you would like to answer using this dataset. 
 Then write a query to answer this question.
 
-What were the most common male and female names between 1985 and 1995? What were the most common names in 1999 and 2000, respectively?
-How many female Hugos are there?
-
--- In what years did the number of male registrations outnumber female registrations
+- What were the most common male and female names between 1985 and 1994? What were the most common names in 1999 and 2000, respectively?
+- Were there years with female Hugos?
 
 */
 
+-- Common names between 1985 and 1994
+
+SELECT name, gender, SUM(num_registered) AS total_registered
+FROM names
+WHERE year BETWEEN 1985 AND 1994
+AND gender = 'M'
+GROUP BY name, gender
+ORDER BY total_registered DESC;
+
+SELECT name, gender, SUM(num_registered) AS total_registered
+FROM names
+WHERE year BETWEEN 1985 AND 1994
+AND gender = 'F'
+GROUP BY name, gender
+ORDER BY total_registered DESC;
+
+-- Female Hugos
+
+SELECT *
+FROM names
+WHERE name = 'Hugo' AND gender = 'F'
+ORDER BY year;
 
 ----------------------------------------------------------------------------------------------------------------
 /* Bonus 1
@@ -568,18 +588,171 @@ Hint: you may need to make use of multiple subqueries and JOIN them in order to 
 SELECT gender, COUNT(DISTINCT name) AS distinct_names
 FROM names
 GROUP BY gender
-ORDER BY distinct_names DESC;
+ORDER BY distinct_names DESC;WITH gaps_ranks AS (
+	SELECT *,
+		year - lag(year) OVER(PARTITION BY name ORDER BY year) AS gap,
+		RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC) AS rank
+	FROM names
+)
+SELECT *
+FROM gaps_ranks
+WHERE name IN (
+	SELECT DISTINCT name
+	FROM gaps_ranks
+	WHERE rank = 1
+	)
+AND (rank = 1 OR gap IS NULL);
 
--- by year
+-- by year, wide, CASE WHEN, no subquery
 
-SELECT year, gender, COUNT(name) AS distinct_count
--- 	CASE WHEN gender = 'F' THEN COUNT(DISTINCT name) END AS distinct_female,
--- 	CASE WHEN gender = 'M' THEN COUNT(DISTINCT name) END AS distinct_male
+SELECT year,
+	SUM(CASE WHEN gender = 'F' THEN 1 END) AS distinct_female,
+	SUM(CASE WHEN gender = 'M' THEN 1 END) AS distinct_male
 FROM names
-GROUP BY year, gender
-ORDER BY year
+GROUP BY year
+HAVING SUM(CASE WHEN gender = 'M' THEN 1 END) > SUM(CASE WHEN gender = 'F' THEN 1 END);
+
 
 /* Answer B8
 Females have more distinct names overall (67,698 vs 41,475)
-There are years where this is reversed, e.g., 1880, but there aren't many
+Only the first three years of the data set (1880-1882) have more variety among male names than female names
+*/
+
+----------------------------------------------------------------------------------------------------------------
+/* Bonus 9
+Which names are closest to being evenly split between male and female usage? 
+For this question, consider only names that have been used at least 10000 times in total.
+*/
+
+WITH females AS (
+	SELECT name,
+		SUM(num_registered) AS females_registered
+	FROM names
+	WHERE gender = 'F'
+	GROUP BY name
+),
+males AS (
+	SELECT name,
+		SUM(num_registered) AS males_registered
+	FROM names
+	WHERE gender = 'M'
+	GROUP BY name
+)
+SELECT name, 
+	females_registered,
+	males_registered,
+	ABS(females_registered - males_registered) AS difference,
+	ABS(females_registered - males_registered)*100.0/(females_registered + males_registered) AS pct_difference
+FROM females
+INNER JOIN males
+USING (name)
+WHERE females_registered + males_registered > 10000
+ORDER BY pct_difference;
+
+/* Answer B9
+Unknown (if that's a name) with a difference of 91, i.e., 0.48%
+Otherwise it's Elisha with a difference of 167, i.e., 0.61% (pronunciation difference?)
+*/
+
+----------------------------------------------------------------------------------------------------------------
+/* Bonus 10
+Which names have been among the top 25 most popular names for their gender in every single year contained in the names table? 
+Hint: you may have to combine a window function and a subquery to answer this question.
+*/
+
+WITH ranks AS (
+	SELECT *,
+		RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC)
+	FROM names
+)
+SELECT name, gender
+FROM ranks
+WHERE rank <= 25
+GROUP BY name, gender
+HAVING COUNT(*) = (SELECT MAX(year) - MIN(year) + 1
+							 FROM names)
+
+/* Answer B10
+James, William, and Joseph have been in the top 25 of the males for every year in the data set
+Notably, no female names have been in the top 25 every year
+*/
+
+----------------------------------------------------------------------------------------------------------------
+/* Bonus 11
+Find the name that had the biggest gap between years that it was used.
+*/
+
+WITH gaps AS (
+	SELECT name, 
+		year,
+		year - lag(year) OVER(PARTITION BY name ORDER BY year) as gap
+	FROM names
+)
+SELECT name, MAX(gap) AS max_gap
+FROM gaps
+WHERE gap IS NOT NULL
+GROUP BY name
+ORDER BY max_gap DESC
+
+/* Answer B11
+Franc is the name with the biggest gap between uses (118 years)
+*/
+
+----------------------------------------------------------------------------------------------------------------
+/* Bonus 12
+Have there been any names that were not used in the first year of the dataset (1880) 
+but which made it to be the most-used name for its gender in some year? 
+
+Difficult follow-up:
+What is the shortest amount of time that a name has gone from not being used at all
+to being the number one used name for its gender in a year?
+*/
+
+-- a
+
+WITH ranks AS (
+	SELECT *,
+		RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC)
+	FROM names
+)
+SELECT name, gender, COUNT(*) AS times_at_top
+FROM ranks
+WHERE rank = 1
+AND name NOT IN (
+	SELECT name
+	FROM names
+	WHERE year = 1880
+)
+GROUP BY name, gender
+
+-- b
+
+WITH gaps_ranks AS (
+	SELECT *,
+		year - lag(year) OVER(PARTITION BY name ORDER BY year) AS gap,
+		RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC) AS rank
+	FROM names
+),
+max_null_years AS (
+	SELECT name, MAX(year)-1 AS latest_unused 
+	FROM gaps_ranks
+	WHERE gap IS NULL
+	GROUP BY name
+),
+min_top_years AS (
+	SELECT name, MIN(year) AS earliest_top
+	FROM gaps_ranks
+	WHERE rank = 1
+	GROUP BY name
+)
+SELECT *, earliest_top - latest_unused AS zero_to_hero
+FROM max_null_years
+INNER JOIN min_top_years
+USING (name)
+WHERE latest_unused > 1879
+ORDER BY zero_to_hero;
+
+/* Answer B12
+Jennifer, Liam, and Lisa were not used in 1880 but became the most used name for their gender in other years
+Jennifer went from unused to top name in the fewest number of years (55)
 */
