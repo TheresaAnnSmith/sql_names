@@ -325,13 +325,13 @@ having count(name) = (select max(year) from names) - (select min(year) from name
 How many names have only appeared in one year?
 */
 
-SELECT name, COUNT(name) AS years_appeared
+SELECT name, COUNT(DISTINCT year) AS years_appeared
 FROM names
 GROUP BY name
-HAVING COUNT(name) = 1;
+HAVING COUNT(DISTINCT year) = 1;
 
 /* Answer 16
-21,100 names appeared in only one year
+21,123 names appeared in only one year
 */
 
 ----------------------------------------------------------------------------------------------------------------
