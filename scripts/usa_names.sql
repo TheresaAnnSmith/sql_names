@@ -313,7 +313,6 @@ GROUP BY name
 HAVING COUNT(DISTINCT year) = 139;
 
 -- Bryan
-
 select name, count(name) as years_appeared
 from names
 group by name
