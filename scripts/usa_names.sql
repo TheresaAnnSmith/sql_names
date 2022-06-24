@@ -587,7 +587,9 @@ Hint: you may need to make use of multiple subqueries and JOIN them in order to 
 SELECT gender, COUNT(DISTINCT name) AS distinct_names
 FROM names
 GROUP BY gender
-ORDER BY distinct_names DESC;WITH gaps_ranks AS (
+ORDER BY distinct_names DESC;
+
+WITH gaps_ranks AS (
 	SELECT *,
 		year - lag(year) OVER(PARTITION BY name ORDER BY year) AS gap,
 		RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC) AS rank

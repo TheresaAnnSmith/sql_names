@@ -95,8 +95,7 @@ LIMIT 1;
 select distinct name, gender, sum(num_registered) over (partition by name, gender) as total_registrations
 from names
 where year between 2000 and 2009
-order by total_registrations desc
-
+order by total_registrations desc;
 
 /*10. Which year had the most variety in names (i.e. had the most distinct names)?*/
 SELECT year, COUNT(DISTINCT name) AS num_names
@@ -238,7 +237,6 @@ from names
 group by name
 having count(name) = (select max(year) from names) - (select min(year) from names) + 1;
 
-
 /*16. How many names have only appeared in one year?*/
 SELECT COUNT(*)
 FROM(SELECT name, COUNT(name)
@@ -296,3 +294,429 @@ SELECT name, 2018 - MAX(year) AS years_since_named
 FROM names
 GROUP BY name
 ORDER BY years_since_named DESC;
+
+--BONUS QUESTIONS
+--Bonus #1 Find the longest name contained in this dataset. What do you notice about the long names?
+SELECT name, CHAR_LENGTH(name)
+FROM names
+WHERE CHAR_LENGTH(name) >= 15
+GROUP BY name
+ORDER BY CHAR_LENGTH(name) DESC;
+--36 names have 15 characters, most of them appear to actually be multiple names run together
+--FROM JOSH'S NOTES...
+SELECT DISTINCT name, gender, LENGTH(name) AS name_length
+FROM names
+ORDER BY name_length DESC;
+
+--Bonus #2 How many names are palindromes (i.e. read the same backwards and forwards, such as Bob and Elle)?
+SELECT name, REVERSE(name)
+FROM names
+WHERE name ILIKE REVERSE(name)
+GROUP BY name;
+
+SELECT COUNT(DISTINCT name)
+FROM names
+WHERE name ILIKE REVERSE(name);
+--137 names are palindromes
+
+/*Bonus #3 Find all names that contain no vowels (for this question, we'll count a,e,i,o,u, and y as vowels). 
+(Hint: you might find this page helpful: https://www.postgresql.org/docs/8.3/functions-matching.html)*/
+SELECT DISTINCT(name)
+FROM names
+WHERE name NOT ILIKE '%a%'
+	AND name NOT ILIKE '%e%'
+	AND name NOT ILIKE '%i%'
+	AND name NOT ILIKE '%o%'
+	AND name NOT ILIKE '%u%'
+	AND name NOT ILIKE '%y%'
+GROUP BY name;
+
+--FROM JOSH'S NOTES...
+SELECT DISTINCT name
+FROM names
+WHERE LOWER(name) NOT SIMILAR TO '%(a|e|i|o|u|y)%';
+
+-- Bryan
+select distinct names_examined.name
+from (select name, regexp_replace(lower(name), E'[aeiouy]', '', 'g') as modified_name from usa_names) as names_examined
+where length(names_examined.name) = length(names_examined.modified_name);
+
+
+/*Bonus #4How many double-letter names show up in the dataset? Double-letter means the same letter repeated 
+back-to-back, like Matthew or Aaron. Are there any triple-letter names?*/
+--FROM JOSH'S NOTES...
+SELECT COUNT(DISTINCT name) AS double_letter_names
+FROM names
+WHERE name ~* '(.)\1{1}';
+
+SELECT COUNT(DISTINCT name) AS triple_letter_names
+FROM names
+WHERE name ~* '(.)\1{2}';
+/* Answer B4
+22,537 double-letter
+12 triple-letter
+*/
+
+/*Bonus #5 On question 17 of the first part of the exercise, 
+you found names that only appeared in the 1950s. Now, find all names that did not appear in the 1950s but 
+were used both before and after the 1950s. We'll answer this question in two steps.
+		a. First, write a query that returns all names that appeared during the 1950s.
+		b. Now, make use of this query along with the IN keyword in order the find all names that did not 
+		appear in the 1950s but which were used both before and after the 1950s.*/
+SELECT DISTINCT name, MIN(year), MAX(year)
+FROM names
+WHERE name NOT IN
+	(SELECT DISTINCT name
+	FROM names
+	WHERE year BETWEEN 1950 AND 1959)
+GROUP BY name
+	HAVING MIN(year) < 1950
+	AND MAX(year) > 1959;
+	
+SELECT COUNT(DISTINCT name)
+FROM names
+WHERE name NOT IN
+	(SELECT DISTINCT name
+	FROM names
+	WHERE year BETWEEN 1950 AND 1959)
+	AND name IN
+	(SELECT DISTINCT name
+	FROM names
+	GROUP BY name
+	HAVING MIN(year) < 1950
+	AND MAX(year) > 1959);
+--2525 names from the list that did not appear in the 1950's but did appear before and after
+
+/*They did it a little off in that they were excluding ONLY the names which only appeared in the 50's, a bit redundant
+given the question asked*/
+SELECT name, MIN(year) AS min_year, MAX(year) max_year
+FROM names
+WHERE name NOT IN
+	(SELECT name
+	FROM names
+	GROUP BY name
+	HAVING (MIN(year) BETWEEN 1950 AND 1959)
+	AND (MAX(year) BETWEEN 1950 AND 1959))
+GROUP BY name
+HAVING MIN(year) < 1950 AND MAX(year) > 1959
+ORDER BY min_year DESC;
+-- Chris
+SELECT COUNT(DISTINCT name)
+FROM names
+WHERE name NOT IN 
+	(SELECT name
+	 FROM names
+	 GROUP BY name
+	 HAVING MIN(year) >= 1950
+	 AND MAX(year) <= 1959)
+AND name IN
+	(SELECT name
+	 FROM names
+	 GROUP BY name
+	 HAVING MIN(year) < 1950
+	 AND MAX(year) > 1959);
+/* Answer B5
+14,548 names 
+*/
+SELECT COUNT(DISTINCT name)
+FROM names
+WHERE name IN
+	(SELECT name
+	 FROM names
+	 GROUP BY name
+	 HAVING MIN(year) < 1950
+	 AND MAX(year) > 1959);
+
+/*Bonus #6 In question 16, you found how many names appeared in only one year. Which year had 
+the highest number of names that only appeared once?*/
+SELECT year, COUNT(year) AS number_of_names
+FROM names
+WHERE name IN
+	(SELECT name
+	FROM names
+	GROUP BY name
+	HAVING COUNT(name) = 1)
+GROUP BY year
+ORDER BY number_of_names DESC
+LIMIT 10;
+--2018 had 1,050 names that only appear in the list once
+--FROM JOSH's NOTES...
+SELECT year, COUNT(DISTINCT name) AS one_offs
+FROM names
+WHERE name IN 
+	(SELECT name AS years_appeared
+	FROM names
+	GROUP BY name
+	HAVING COUNT(name) = 1)
+GROUP BY year 
+ORDER BY one_offs DESC;
+
+--Bonus #7 Which year had the most new names (names that hadn't appeared in any years before that year)?
+SELECT first_occ, COUNT(first_occ) AS new_name_count
+FROM(SELECT name, MIN(year) AS first_occ
+	  FROM names
+	  GROUP BY name) AS first_year
+GROUP BY first_occ
+ORDER BY new_name_count DESC;
+--2007 had the most new names with 2027
+--FROM JOSH'S NOTES...
+--We discovered this doesn't work because having the year in the GROUP BY statement results in creating a "group"
+--for each year, so the (MIN) in the HAVING statement doesn't really do anything because each row is its own minimum
+SELECT year, COUNT(*) AS new_names
+FROM (SELECT name, year
+	 FROM names
+	 GROUP BY name, year
+	 HAVING MIN(year) = year
+	 ORDER BY name) AS s
+ GROUP BY year
+ ORDER BY new_names DESC;
+ --The below confirms the same total for 2008 as the above
+ SELECT COUNT(DISTINCT name)
+ FROM names
+ WHERE year = 2008;
+
+/*Bonus #8 Is there more variety (more distinct names) for females or for males? Is this true for all years or are 
+their any years where this is reversed? Hint: you may need to make use of multiple subqueries and JOIN them in order 
+to answer this question.*/
+SELECT gender, COUNT(DISTINCT name) AS total_names
+FROM names
+GROUP BY gender;
+--Playing with CASE statements
+SELECT
+	COUNT(DISTINCT CASE WHEN gender = 'M' THEN name END) AS total_male_names,
+	COUNT(DISTINCT CASE WHEN gender = 'F' THEN name END) AS total_female_names
+FROM names;
+--Females have a good bit more variety with 67,698 distinct names and males have 41,475 distinct names
+--(these totals include the 10,773 unisex names)
+--Looking for exceptions by year
+--Using subqueries joined together
+SELECT year, total_male_names, total_female_names
+FROM (SELECT year, COUNT(DISTINCT name) AS total_female_names
+	  FROM names
+	  WHERE gender = 'F'
+	  GROUP BY year) AS f
+	  INNER JOIN
+	  (SELECT year, COUNT(DISTINCT name) AS total_male_names
+	  FROM names
+	  WHERE gender = 'M'
+	  GROUP BY year) AS m
+	  USING (year)
+WHERE total_male_names > total_female_names;
+
+--Playing with CTEs
+WITH female_names AS (SELECT year, COUNT(DISTINCT name) AS total_female_names
+					  FROM names
+					  WHERE gender = 'F'
+					  GROUP BY year),
+	male_names AS (SELECT year, COUNT(DISTINCT name) AS total_male_names
+				   	FROM names
+				   	WHERE gender = 'M'
+				    GROUP BY year)
+SELECT year, total_male_names, total_female_names
+FROM female_names AS fn INNER JOIN male_names as mn USING(year)
+WHERE total_male_names > total_female_names;
+--Playing with CASE statements				  
+SELECT *
+FROM(SELECT year,
+		COUNT(DISTINCT CASE WHEN gender = 'M' THEN name END) AS total_male_names,
+		COUNT(DISTINCT CASE WHEN gender = 'F' THEN name END) AS total_female_names
+	FROM names
+	GROUP BY year) AS comparison
+WHERE total_male_names > total_female_names
+ORDER BY year;
+--Pulling out unisex names
+SELECT year, total_male_names, total_female_names
+FROM (SELECT year, COUNT(DISTINCT name) AS total_female_names
+	  FROM names
+	  WHERE gender = 'F'
+	  AND name NOT IN (SELECT name
+					   FROM names
+					   WHERE gender = 'F'
+					   INTERSECT
+					   SELECT name
+					   FROM names
+					   WHERE gender = 'M')
+	  GROUP BY year) AS f
+	  INNER JOIN
+	  (SELECT year, COUNT(DISTINCT name) AS total_male_names
+	  FROM names
+	  WHERE gender = 'M'
+	  AND name NOT IN (SELECT name
+					   FROM names
+					   WHERE gender = 'F'
+					   INTERSECT
+					   SELECT name
+					   FROM names
+					   WHERE gender = 'M')
+	  GROUP BY year) AS m
+	  USING (year)
+WHERE total_male_names > total_female_names
+ORDER BY year;
+--There are no years with more distinct male names if you pull out the unisex names
+--FROM JOSH'S NOTES, VERY SIMILAR TO MY CASE STATEMENT, BUT AN INTERESTING FEATURE I HADN'T SEEN
+SELECT year,
+	SUM(CASE WHEN gender = 'F' THEN 1 END) AS distinct_female,
+	SUM(CASE WHEN gender = 'M' THEN 1 END) AS distinct_male
+FROM names
+GROUP BY year
+HAVING SUM(CASE WHEN gender = 'M' THEN 1 END) > SUM(CASE WHEN gender = 'F' THEN 1 END);
+
+/*Bonus #9 Which names are closest to being evenly split between male and female usage? For this question, consider only names 
+that have been used at least 10000 times in total.*/
+SELECT *, ABS(f_registered - m_registered) AS count_dif
+FROM (SELECT name, SUM(num_registered) AS total_registered,
+		SUM(CASE WHEN gender = 'F' THEN num_registered END) AS F_registered,
+		SUM(CASE WHEN gender = 'M' THEN num_registered END) AS M_registered
+	  FROM names
+	  GROUP BY name) AS counts
+WHERE f_registered > 0
+AND m_registered> 0
+AND total_registered >= 10000
+ORDER BY count_dif;
+--Santana only has a difference of 93 registrations, Elisha (167), Baby(216), Mckinley(240)
+--After looking at Josh's solution, agree that percent difference makes more sense
+SELECT *, ABS(f_registered - m_registered) AS count_dif, ROUND(ABS(f_registered - m_registered)*100/(total_registered)::decimal, 3) AS pct_dif
+FROM (SELECT name, SUM(num_registered) AS total_registered,
+		SUM(CASE WHEN gender = 'F' THEN num_registered END) AS F_registered,
+		SUM(CASE WHEN gender = 'M' THEN num_registered END) AS M_registered
+	  FROM names
+	  GROUP BY name) AS counts
+WHERE f_registered > 0
+AND m_registered> 0
+AND total_registered >= 10000
+ORDER BY pct_dif;
+---Elisha, Quin, Santana all have less than 1% difference in usage
+--FROM JOSH'S NOTES...
+WITH females AS (
+	SELECT name,
+		SUM(num_registered) AS females_registered
+	FROM names
+	WHERE gender = 'F'
+	GROUP BY name),
+males AS (
+	SELECT name,
+		SUM(num_registered) AS males_registered
+	FROM names
+	WHERE gender = 'M'
+	GROUP BY name)
+SELECT name, 
+	females_registered,
+	males_registered,
+	ABS(females_registered - males_registered) AS difference,
+	ABS(females_registered - males_registered)*100.0/(females_registered + males_registered) AS pct_difference
+FROM females
+INNER JOIN males
+USING (name)
+WHERE females_registered + males_registered > 10000
+ORDER BY pct_difference;
+
+/*Bonus #10 Which names have been among the top 25 most popular names for their gender in every single year 
+contained in the names table?  Hint: you may have to combine a window function and a subquery to answer this question.*/
+SELECT name, COUNT(name)
+FROM (SELECT name,
+		   gender,
+		   year,
+		   num_registered,
+		   RANK () OVER(PARTITION BY gender, year ORDER BY num_registered DESC) AS rank_by_year
+	 FROM names) AS ranks
+WHERE rank_by_year <= 25
+GROUP BY name
+HAVING COUNT(name) = 139;
+--Joseph, William, James
+
+--FROM JOSH'S NOTES...
+WITH ranks AS (
+	SELECT *,
+		RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC)
+	FROM names
+)
+SELECT name, gender
+FROM ranks
+WHERE rank <= 25
+GROUP BY name, gender
+HAVING COUNT(*) = (SELECT MAX(year) - MIN(year) + 1
+							 FROM names);
+
+/*Bonus #11 Find the name that had the biggest gap between years that it was used.*/
+SELECT name,
+	   year,
+	   year - LAG(year,1) OVER(PARTITION BY name ORDER BY year) AS years_since_last_used
+FROM names
+ORDER BY years_since_last_used DESC NULLS LAST
+LIMIT 1;
+--Franc was not used for 115 years when it was used in 2001
+
+/*Bonus #12 Have there been any names that were not used in the first year of the dataset (1880) 
+but which made it to be the most-used name for its gender in some year? Difficult follow-up: 
+What is the shortest amount of time that a name has gone from not being used at all to being the 
+number one used name for its gender in a year?*/
+--Full list of names that fit above critera with years that they were the top name
+WITH name_ranks AS	(SELECT name,
+		   					year,
+				 			num_registered,
+				 			RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC) AS name_rank
+	  				 FROM names)
+SELECT *
+FROM name_ranks
+WHERE name_rank = 1
+AND name NOT IN
+				(SELECT name
+				 FROM names
+				 WHERE year = 1880);
+--List of distinct names only
+WITH name_ranks AS	(SELECT name,
+		   					year,
+				 			num_registered,
+				 			RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC) AS name_rank
+	  				 FROM names)
+SELECT DISTINCT name
+FROM name_ranks
+WHERE name_rank = 1
+AND name NOT IN
+				(SELECT name
+				 FROM names
+				 WHERE year = 1880);
+--Jennifer, Liam, Lisa
+--Difficult follow up
+WITH name_ranks AS	(SELECT name,
+		   					year,
+				 			num_registered,
+				 			RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC) AS name_rank,
+					 		year - MIN(year) OVER(PARTITION BY gender, name) AS years_since_first_used
+	  				 FROM names)
+SELECT *
+FROM name_ranks
+WHERE name_rank = 1
+AND name NOT IN
+				(SELECT name
+				 FROM names
+				 WHERE year = 1880)
+ORDER BY years_since_first_used;
+--Jennifer, 55 years from no use to #1
+
+--FROM JOSH'S NOTES...
+--He actually set up a table to get the latest UNUSED year where I found the first used year and added one in my final answer
+WITH gaps_ranks AS (
+	SELECT *,
+		year - lag(year) OVER(PARTITION BY name ORDER BY year) AS gap,
+		RANK() OVER(PARTITION BY gender, year ORDER BY num_registered DESC) AS rank
+	FROM names
+),
+max_null_years AS (
+	SELECT name, MAX(year)-1 AS latest_unused 
+	FROM gaps_ranks
+	WHERE gap IS NULL
+	GROUP BY name
+),
+min_top_years AS (
+	SELECT name, MIN(year) AS earliest_top
+	FROM gaps_ranks
+	WHERE rank = 1
+	GROUP BY name
+)
+SELECT *, earliest_top - latest_unused AS zero_to_hero
+FROM max_null_years
+INNER JOIN min_top_years
+USING (name)
+WHERE latest_unused > 1879
+ORDER BY zero_to_hero;
