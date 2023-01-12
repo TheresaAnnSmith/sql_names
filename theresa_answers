@@ -25,7 +25,7 @@ Answer: Robert appeared 10,026 times in 1947
 SELECT MIN (year), MAX (year)
 FROM `bigquery-public-data.usa_names.usa_1910_current`
 
-1910 - 2021
+Answer: 1910 - 2021
 
 5. What year has the largest number of registrations?
 
@@ -33,3 +33,14 @@ SELECT SUM (number) AS count, year
 FROM `bigquery-public-data.usa_names.usa_1910_current`
 GROUP BY year
 ORDER BY count DESC;
+
+Answer: In 1957 there were 4,003,066 registrations.
+
+6. How many different (distinct) names are contained in the dataset?
+
+SELECT COUNT (DISTINCT name)
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+
+Answer: 32, 403
+
+7. Are there more males or more females registered?
