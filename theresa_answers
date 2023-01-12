@@ -1,0 +1,35 @@
+1. How many rows are in the names table?
+
+SELECT COUNT (*)
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+
+Answer: 6,311,504
+
+2. How many total registered people appear in the dataset?
+
+SELECT SUM (number)
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+
+Answer: 319,731,698
+
+3. Which name had the most appearances in a single year in the dataset?
+
+SELECT name, number, year
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+ORDER BY number DESC;
+
+Answer: Robert appeared 10,026 times in 1947
+
+4. What range of years are included?
+
+SELECT MIN (year), MAX (year)
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+
+1910 - 2021
+
+5. What year has the largest number of registrations?
+
+SELECT SUM (number) AS count, year
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+GROUP BY year
+ORDER BY count DESC;
