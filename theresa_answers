@@ -41,6 +41,48 @@ Answer: In 1957 there were 4,003,066 registrations.
 SELECT COUNT (DISTINCT name)
 FROM `bigquery-public-data.usa_names.usa_1910_current`
 
-Answer: 32, 403
+Answer: There are 32,403 different names.
 
 7. Are there more males or more females registered?
+
+SELECT gender, SUM(number)
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+GROUP BY gender;
+
+Answer: Female: 153,512,251. Male: 166,219,447
+
+8. What are the most popular male and female names overall (i.e., the most total registrations)?
+
+SELECT gender, name, SUM(number) AS total_name
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+WHERE gender = 'F'
+GROUP BY gender, name
+ORDER BY total_name DESC
+LIMIT 1;
+
+SELECT gender, name, SUM(number) AS total_name
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+WHERE gender = 'F'
+GROUP BY gender, name
+ORDER BY total_name DESC
+LIMIT 1;
+
+9. What are the most popular boy and girl names of the first decade of the 2000s (2000 - 2009)?
+
+SELECT gender, name, SUM(number) AS name_total
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+WHERE year BETWEEN 2000 AND 2009
+AND gender ='M'
+GROUP BY gender, name
+ORDER BY name_total DESC
+LIMIT 1;
+
+SELECT gender, name, SUM(number) AS name_total
+FROM `bigquery-public-data.usa_names.usa_1910_current`
+WHERE year BETWEEN 2000 AND 2009
+AND gender ='F'
+GROUP BY gender, name
+ORDER BY name_total DESC
+LIMIT 1;
+
+Answer: Jacob with a total of 273,945. Emily with a total of 223,723

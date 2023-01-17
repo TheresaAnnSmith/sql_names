@@ -1,6 +1,6 @@
 ## SQL Names
 
-Save a script containing the query you used to answer each question and your answer (as a comment).
+I used the BigQuery public database titled 'usa_1910_current' to answer the following questions. 
 
 1. How many rows are in the names table?
 
